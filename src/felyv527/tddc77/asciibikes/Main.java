@@ -1,82 +1,82 @@
 package felyv527.tddc77.asciibikes;
 
-import felyv527.tddc77.asciibikes.CountDownOverlay.CountDownCompletedListener;
-import felyv527.tddc77.asciibikes.colors.TerminalBackgroundColor;
-import felyv527.tddc77.asciibikes.colors.TerminalForegroundColor;
-import felyv527.tddc77.asciibikes.colors.Colorizer;
-import felyv527.tddc77.asciibikes.common.Point;
-import felyv527.tddc77.asciibikes.io.InputManager;
+import felyv527.tddc77.asciibikes.game.AsciiBikesGame;
+import felyv527.tddc77.asciibikes.game.config.GameConfig;
+import felyv527.tddc77.asciibikes.game.config.GameConfigBuilder;
 import felyv527.tddc77.asciibikes.io.OutputManager;
-import felyv527.tddc77.asciibikes.io.TerminalInfo;
-import felyv527.tddc77.asciibikes.menu.InputMenuItem;
-import felyv527.tddc77.asciibikes.menu.GoBackMenuItem;
-import felyv527.tddc77.asciibikes.menu.Menu;
-import felyv527.tddc77.asciibikes.menu.ExitMenuItem;
+import felyv527.tddc77.asciibikes.menu.SimpleMenu;
 import felyv527.tddc77.asciibikes.menu.MenuItem;
 import felyv527.tddc77.asciibikes.menu.MenuResult;
-import felyv527.tddc77.asciibikes.text.HeadlineFont;
-import felyv527.tddc77.asciibikes.text.StandardFont;
-import felyv527.tddc77.asciibikes.text.TextAlignment;
+import felyv527.tddc77.asciibikes.menu.ScoreboardMenu;
+import felyv527.tddc77.asciibikes.menu.NavigationMenuItem;
 
+/**
+ * Main entry point for ASCIIBikes and menu driver
+ */
 public class Main {
 	private static final Point minSize = new Point(60, 20);
 
 	private static final String[][] launchCommands = new String[][] { //
-			{
-					"/bin/sh", "-c", "stty raw </dev/tty"
-			}, //
-			{
-					"/bin/sh", "-c", "stty -echo </dev/tty"
-			}, //
-			{
-					"/bin/sh", "-c", "tput civis >/dev/tty"
-			}
-	//
+			// Puts the terminal into a raw mode
+			// Used to read input live from the terminal
+			{ "/bin/sh", "-c", "stty raw </dev/tty" }, //
+
+			// Turns off terminal echo
+			{ "/bin/sh", "-c", "stty -echo </dev/tty" }, //
+
+			// Hides the terminal cursor
+			{ "/bin/sh", "-c", "tput civis >/dev/tty" } //
 
 	};
 	private static final String[][] exitCommands = new String[][] { //
-			{
-					"/bin/sh", "-c", "tput cnorm >/dev/tty"
-			}, //
-			{
-					"/bin/sh", "-c", "stty echo </dev/tty"
-			}, //
-			{
-					"/bin/sh", "-c", "stty cooked </dev/tty"
-			}, //
+			// Shows the terminal cursor
+			{ "/bin/sh", "-c", "tput cnorm >/dev/tty" }, //
+
+			// Turns on terminal echo
+			{ "/bin/sh", "-c", "stty echo </dev/tty" }, //
+
+			// Puts the terminal into cooked mode
+			{ "/bin/sh", "-c", "stty cooked </dev/tty" } //
 	};
+
+	private static GameConfig customConfig = null;
 
 	public static void main(String[] args) {
 		if (!System.getProperty("os.name").startsWith("Linux")) {
 			System.out.println("ASCIIBikes is unfortunately only compatible with linux.\n"
 					+ "Please switch to a linux system to play!");
-			return;
-		}
-		OutputManager.clear();
-		for (String[] command : launchCommands)
-			execCommand(command);
 
-		if (TerminalInfo.getTerminalCols() < minSize.getX() || TerminalInfo.getTerminalLines() < minSize.getY()) {
-			OutputManager.println("This terminal is too small for playing ASCIIBikes.\n"
+		} else if (TerminalDimensions.getNumColumns() < minSize.getX()
+				|| TerminalDimensions.getNumLines() < minSize.getY()) {
+			System.out.println("This terminal is too small for playing ASCIIBikes.\n"
 					+ "Please resize your terminal to be at least " + minSize.getX() + " cols by " + minSize.getY()
 					+ " rows to play");
-		} else {
-			SplashScreen.show();
 
-			new Menu("ASCIIBikes", "Welcome, racers.", //
+		} else {
+			// This system should be able to support ASCIIBikes
+
+			// In order to read input live etc. we need to execute some commands
+			// in the terminal before we start.
+			for (String[] command : launchCommands) {
+				try {
+					Runtime.getRuntime().exec(command);
+				} catch (Exception e) {
+					e.printStackTrace();
+				}
+			}
+
+			OutputManager.clear();
+
+			(new SplashScreen()).run();
+
+			// Main menu
+			new SimpleMenu("ASCIIBikes", "Welcome, racers.", //
 					new MenuItem() {
+						// Minimum-setup game mode
 
 						@Override
 						public String getTitle() {
-							return "Start game";
-						}
-
-						@Override
-						public MenuResult show() {
-							Game g = new AsciiBikesGame();
-							g.Run();
-
-							return MenuResult.RESULT_OK;
+							return "Quick Play";
 						}
 
 						@Override
@@ -84,18 +84,19 @@ public class Main {
 							return true;
 						}
 
-					}, new Menu("Debug menu", "", //
+						@Override
+						public MenuResult show() {
+							startGame(GameConfigBuilder.requestQuickplayConfig());
+							return MenuResult.COMPLETED;
+						}
+
+					}, //
+					new SimpleMenu("Custom Game", "Create new config or use previous settings?", //
 							new MenuItem() {
 
 								@Override
 								public String getTitle() {
-									return "Splash screen";
-								}
-
-								@Override
-								public MenuResult show() {
-									SplashScreen.show();
-									return MenuResult.RESULT_OK;
+									return "New game configuration";
 								}
 
 								@Override
@@ -103,192 +104,58 @@ public class Main {
 									return true;
 								}
 
-							}, new MenuItem() {
-
-								boolean loopDone = false;
-
-								@Override
-								public String getTitle() {
-									return "Countdown overlay";
-								}
-
 								@Override
 								public MenuResult show() {
-									loopDone = false;
-									InputMenuItem input = new InputMenuItem("Select duration", "Duration (millis): ",
-											"\\d", 1);
-									input.show();
-									CountDownOverlay cdo = new CountDownOverlay(Integer.valueOf(input.getInput()));
-									cdo.start(new CountDownCompletedListener() {
-
-										@Override
-										public void onCountDownCompleted() {
-											loopDone = true;
-										}
-
-									});
-									while (!loopDone) {
-										cdo.update(50);
-										DrawHandler.drawFrame();
-										try {
-											Thread.sleep(50);
-										} catch (InterruptedException e) {
-											e.printStackTrace();
-										}
-									}
-
-									return MenuResult.RESULT_OK;
+									customConfig = GameConfigBuilder.requestCustomConfig();
+									startGame(customConfig);
+									return MenuResult.GO_BACK;
 								}
 
-								@Override
-								public boolean isEnabled() {
-									return true;
-								}
-
-							}, new InputMenuItem("Input menu test", "Please enter some text: ", 3, 18),//
+							}, //
 							new MenuItem() {
 
 								@Override
 								public String getTitle() {
-									return "Regex input test";
-								}
-
-								@Override
-								public boolean isEnabled() {
-
-									return true;
+									return "Use previous settings";
 								}
 
 								@Override
 								public MenuResult show() {
-									(new Menu(
-											"Regex input test",
-											"Some selected regexes will now be tested.\nOnly characters matching the regex will be displayed.",
-											new GoBackMenuItem("Start"))).show();
-
-									InputMenuItem IMU = new InputMenuItem(".*", "> ", ".*");
-									IMU.show();
-
-									IMU = new InputMenuItem("[A-Z]", "> ", "[A-Z]");
-									IMU.show();
-
-									IMU = new InputMenuItem("\\w", "> ", "\\w");
-									IMU.show();
-
-									IMU = new InputMenuItem("\\d", "> ", "\\d");
-									IMU.show();
-
-									IMU = new InputMenuItem("[0-9]", "> ", "[0-9]");
-									IMU.show();
-
-									return MenuResult.RESULT_OK;
-								}
-
-							}, new MenuItem() {
-
-								@Override
-								public String getTitle() {
-									return "Text test";
-								}
-
-								@Override
-								public MenuResult show() {
-									printTextTest();
-									pause();
-									return MenuResult.RESULT_OK;
+									startGame(customConfig);
+									return MenuResult.GO_BACK;
 								}
 
 								@Override
 								public boolean isEnabled() {
-									return true;
+									// Previous settings are only available if
+									// the user has previously created a custom
+									// game during this session.
+									return customConfig != null;
 								}
 
-							}, new Menu("Terminal dimensions", "Columns: " + TerminalInfo.getTerminalCols()
-									+ "\nLines: " + TerminalInfo.getTerminalLines(), new GoBackMenuItem()),//
-							new MenuItem() {
-
-								@Override
-								public String getTitle() {
-									return "Basically an exit button";
-								}
-
-								@Override
-								public boolean isEnabled() {
-									return true;
-								}
-
-								@Override
-								public MenuResult show() {
-									return MenuResult.RESULT_CLOSE_MENU_TREE;
-								}
-
-							}, new MenuItem() {
-
-								@Override
-								public String getTitle() {
-									return "Disabled menu entry";
-								}
-
-								@Override
-								public boolean isEnabled() {
-									return false;
-								}
-
-								@Override
-								public MenuResult show() {
-									return MenuResult.RESULT_CLOSE_MENU_TREE;
-								}
-
-							}, new GoBackMenuItem()), //
-					new ExitMenuItem() //
+							}, //
+							new NavigationMenuItem("Back", MenuResult.GO_BACK) //
+					), //
+					new ScoreboardMenu("Scoreboard"), //
+					new NavigationMenuItem("Exit", MenuResult.EXIT) //
 			).show();
+
+			// Resets the terminal to a more normal state.
+			// Note that this totally disregards the user's standard settings.
+			for (String[] command : exitCommands) {
+				try {
+					Runtime.getRuntime().exec(command);
+				} catch (Exception e) {
+					e.printStackTrace();
+				}
+			}
 
 			OutputManager.clear();
 		}
-
-		for (String[] command : exitCommands)
-			execCommand(command);
 	}
 
-	private static void printTextTest() {
-		OutputManager.clear();
-
-		int cursorLine = 1;
-
-		for (String line : (new HeadlineFont()).applyFont(
-				"1234567890_-+?!@\nThe quick, brown, fox\njumps over the lazy dog.", TextAlignment.CENTER)) {
-			OutputManager.println(line);
-			cursorLine++;
-		}
-
-		for (String line : (new HeadlineFont()).applyFont("Game Over")) {
-			OutputManager.println(line);
-			cursorLine++;
-		}
-		for (String line : (new StandardFont()).applyFont("Standard\nfont", TextAlignment.CENTER)) {
-			OutputManager.println(line);
-			cursorLine++;
-		}
-
-		while (cursorLine < TerminalInfo.getTerminalLines()) {
-			cursorLine++;
-			OutputManager.println();
-		}
-	}
-
-	private static void pause() {
-		OutputManager.print(Colorizer.colorize("Press any key to continue...", TerminalForegroundColor.BLACK,
-				TerminalBackgroundColor.GREEN));
-		InputManager.readKeysBlocking();
-		OutputManager.clear();
-	}
-
-	private static void execCommand(String[] command) {
-		try {
-			Runtime.getRuntime().exec(command);
-		} catch (Exception e) {
-			e.printStackTrace();
-		}
+	private static void startGame(GameConfig config) {
+		(new AsciiBikesGame(config)).run();
 	}
 
 }

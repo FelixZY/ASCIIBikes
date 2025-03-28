@@ -1,5 +1,22 @@
 package felyv527.tddc77.asciibikes.menu;
 
+/**
+ * Specifies identifiers to indicate the return value of a {@link MenuItem}
+ *
+ */
 public enum MenuResult {
-	RESULT_OK, RESULT_GO_BACK, RESULT_CLOSE_MENU_TREE
+	/**
+	 * Represents that the {@link MenuItem} has completed all its actions.
+	 */
+	COMPLETED,
+
+	/**
+	 * Represents that the parent {@link MenuItem} should close.
+	 */
+	GO_BACK,
+
+	/**
+	 * Represents that all {@link MenuItem} in the tree should close.
+	 */
+	EXIT
 }

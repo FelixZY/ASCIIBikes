@@ -1,33 +1,45 @@
 package felyv527.tddc77.asciibikes.io;
 
+/**
+ * {@code OutputManager} provides simple methods for writing to a terminal in
+ * raw mode.
+ */
 public class OutputManager {
 
-	public static <T> void print(T out) {
-		System.out.print(out);
+	private OutputManager() {
+		// Utility class. Should not be instantiated.
 	}
 
-	public static void println() {
-		System.out.print("\n\r");
+	/**
+	 * Prints an object.
+	 * 
+	 * @param obj
+	 */
+	public static void print(Object obj) {
+		System.out.print(obj);
 	}
 
-	@SuppressWarnings("unchecked")
-	public static <T> void println(T out) {
-		if(out instanceof CharSequence) {
-			out = (T)(CharSequence)((CharSequence)out).toString().replace("\n", "\n\r");
+	/**
+	 * Prints an object with a trailing newline and carriage return.
+	 * 
+	 * If {@code obj} is an instance of {@link CharSequence}, any contained
+	 * newlines will be adjusted to contain carriage returns as well.
+	 * 
+	 * @param obj
+	 */
+	public static void println(Object obj) {
+		if (obj instanceof CharSequence) {
+			obj = ((CharSequence) obj).toString().replace("\n", "\n\r");
 		}
-		System.out.print(out + "\n\r");
+		System.out.print(obj + "\n\r");
 	}
 
-	public static void returnCarriage() {
-		System.out.print("\r");
-	}
-
+	/**
+	 * Clears the terminal screen
+	 */
 	public static void clear() {
+		// Resets the caret position and clears the screen
 		System.out.print("\033[H\033[J");
-	}
-
-	public static void clearCurrentLine() {
-		System.out.print("\r\033[K");
 	}
 
 }
